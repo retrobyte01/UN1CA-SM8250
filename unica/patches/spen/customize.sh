@@ -1,59 +1,38 @@
-MODEL=$(echo -n "$TARGET_FIRMWARE" | cut -d "/" -f 1)
-REGION=$(echo -n "$TARGET_FIRMWARE" | cut -d "/" -f 2)
+SOURCE_FIRMWARE_PATH="$(cut -d "/" -f 1 -s <<< "$SOURCE_FIRMWARE")_$(cut -d "/" -f 2 -s <<< "$SOURCE_FIRMWARE")"
+TARGET_FIRMWARE_PATH="$(cut -d "/" -f 1 -s <<< "$TARGET_FIRMWARE")_$(cut -d "/" -f 2 -s <<< "$TARGET_FIRMWARE")"
 
-if [ -d "$FW_DIR/${MODEL}_${REGION}/system/system/media/audio/pensounds" ]; then
-    LOG_STEP_IN "- Adding SPen stack"
+SOURCE_HAS_SPEN="$(test -n "$(find "$FW_DIR/$SOURCE_FIRMWARE_PATH/system/system/etc/permissions" -type f -name "com.sec.feature.spen_usp*.xml")" && echo "true" || echo "false")"
+TARGET_HAS_SPEN="$(test -n "$(find "$FW_DIR/$TARGET_FIRMWARE_PATH/system/system/etc/permissions" -type f -name "com.sec.feature.spen_usp*.xml")" && echo "true" || echo "false")"
 
-    # Platform/device modules are applied before ROM-wide modules. Locate a
-    # compatibility package supplied by either layer and make it authoritative
-    # again after importing the generic stack below.
-    AIRCOMMAND_OVERRIDE="$(find \
-        "$SRC_DIR/platform/$TARGET_PLATFORM/patches" \
-        "$SRC_DIR/target/$TARGET_CODENAME/patches" \
-        -type f -path '*/system/priv-app/AirCommand/AirCommand.apk' \
-        -print -quit 2> /dev/null)"
-
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/app/AirGlance"
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/app/LiveDrawing"
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/default-permissions/default-permissions-com.samsung.android.service.aircommand.xml"
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/permissions/privapp-permissions-com.samsung.android.app.readingglass.xml"
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/permissions/privapp-permissions-com.samsung.android.service.aircommand.xml"
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/permissions/privapp-permissions-com.samsung.android.service.airviewdictionary.xml"
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/public.libraries-smps.samsung.txt"
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/sysconfig/airviewdictionaryservice.xml"
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/lib64/libsmpsft.smps.samsung.so"
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/media/audio/pensounds"
-    if [ "$AIRCOMMAND_OVERRIDE" ]; then
-        AIRCOMMAND_OVERRIDE_ROOT="${AIRCOMMAND_OVERRIDE%/system/priv-app/AirCommand/AirCommand.apk}"
-
-        # AirCommand may already have been decoded from the source/dm3q build
-        # by an earlier module or restored decode cache. If that tree remains,
-        # BUILD_APKS rebuilds it after this raw APK copy and silently replaces
-        # the compatibility package again.
-        EVAL "rm -rf \"$APKTOOL_DIR/system/priv-app/AirCommand/AirCommand.apk\""
-
-        LOG "- Installing platform/device AirCommand compatibility package as final override"
-        ADD_TO_WORK_DIR "$AIRCOMMAND_OVERRIDE_ROOT" "system" \
-            "system/priv-app/AirCommand/AirCommand.apk" \
-            0 0 644 "u:object_r:system_file:s0"
-
-        AIRCOMMAND_OVERRIDE_SHA256="$(sha256sum "$AIRCOMMAND_OVERRIDE" | cut -d " " -f 1)"
-        AIRCOMMAND_INSTALLED_SHA256="$(sha256sum \
-            "$WORK_DIR/system/system/priv-app/AirCommand/AirCommand.apk" | cut -d " " -f 1)"
-        if [ "$AIRCOMMAND_OVERRIDE_SHA256" != "$AIRCOMMAND_INSTALLED_SHA256" ]; then
-            LOGE "AirCommand compatibility package was overwritten after installation"
-            return 1
-        fi
-        LOG "- Verified AirCommand compatibility package ($AIRCOMMAND_INSTALLED_SHA256)"
+if ! $SOURCE_HAS_SPEN; then
+    if $TARGET_HAS_SPEN; then
+        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/app/AirGlance/AirGlance.apk" 0 0 644 "u:object_r:system_file:s0"
+        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/app/LiveDrawing/LiveDrawing.apk" 0 0 644 "u:object_r:system_file:s0"
+        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/default-permissions/default-permissions-com.samsung.android.service.aircommand.xml" 0 0 644 "u:object_r:system_file:s0"
+        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/permissions/privapp-permissions-com.samsung.android.app.readingglass.xml" 0 0 644 "u:object_r:system_file:s0"
+        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/permissions/privapp-permissions-com.samsung.android.service.aircommand.xml" 0 0 644 "u:object_r:system_file:s0"
+        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/permissions/privapp-permissions-com.samsung.android.service.airviewdictionary.xml" 0 0 644 "u:object_r:system_file:s0"
+        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/sysconfig/airviewdictionaryservice.xml" 0 0 644 "u:object_r:system_file:s0"
+        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/etc/public.libraries-smps.samsung.txt" 0 0 644 "u:object_r:system_file:s0"
+        ADD_TO_WORK_DIR "$([[ "$TARGET_OS_SINGLE_SYSTEM_IMAGE" == "qssi" ]] && echo "dm3qxxx" || echo "b0sxxx")" \
+            "system" "system/lib/libandroid_runtime.so" 0 0 644 "u:object_r:system_lib_file:s0"
+        ADD_TO_WORK_DIR "$([[ "$TARGET_OS_SINGLE_SYSTEM_IMAGE" == "qssi" ]] && echo "dm3qxxx" || echo "b0sxxx")" \
+            "system" "system/lib/libsmpsft.smps.samsung.so" 0 0 644 "u:object_r:system_lib_file:s0"
+        ADD_TO_WORK_DIR "$([[ "$TARGET_OS_SINGLE_SYSTEM_IMAGE" == "qssi" ]] && echo "dm3qxxx" || echo "b0sxxx")" \
+            "system" "system/lib64/libandroid_runtime.so" 0 0 644 "u:object_r:system_lib_file:s0"
+        ADD_TO_WORK_DIR "$([[ "$TARGET_OS_SINGLE_SYSTEM_IMAGE" == "qssi" ]] && echo "dm3qxxx" || echo "b0sxxx")" \
+            "system" "system/lib64/libsmpsft.smps.samsung.so" 0 0 644 "u:object_r:system_lib_file:s0"
+        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/media/audio/pensounds" 0 0 755 "u:object_r:system_file:s0"
+        ADD_TO_WORK_DIR "$SRC_DIR/prebuilts/extras" "system" "system/priv-app/AirCommand"
+        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/priv-app/AirReadingGlass/AirReadingGlass.apk" 0 0 644 "u:object_r:system_file:s0"
+        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/priv-app/SmartEye/SmartEye.apk" 0 0 644 "u:object_r:system_file:s0"
     else
-        ADD_TO_WORK_DIR "dm3qxxx" "system" "system/priv-app/AirCommand"
+        LOG "\033[0;33m! Nothing to do\033[0m"
     fi
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/priv-app/AirReadingGlass"
-    ADD_TO_WORK_DIR "dm3qxxx" "system" "system/priv-app/SmartEye"
-    LOG_STEP_OUT
 else
-    LOG "- SPen support not detected in target device. Ignoring."
+    if ! $TARGET_HAS_SPEN; then
+        ABORT "Missing patch for condition (SOURCE_HAS_SPEN: [$SOURCE_HAS_SPEN], TARGET_HAS_SPEN: [$TARGET_HAS_SPEN]). Ignoring"
+    fi
 fi
 
-unset MODEL REGION AIRCOMMAND_OVERRIDE AIRCOMMAND_OVERRIDE_ROOT \
-    AIRCOMMAND_OVERRIDE_SHA256 AIRCOMMAND_INSTALLED_SHA256
+unset SOURCE_FIRMWARE_PATH TARGET_FIRMWARE_PATH SOURCE_HAS_SPEN TARGET_HAS_SPEN
