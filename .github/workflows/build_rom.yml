@@ -58,17 +58,17 @@ jobs:
 
       - name: Build dependencies
         run: |
-          source ./buildenv.sh ${{ matrix.target }}
+          source buildenv.sh --debug ${{ matrix.target }}
           ./scripts/build_dependencies.sh
 
       - name: Download stock firmwares
         run: |
-          source ./buildenv.sh ${{ matrix.target }}
+          source buildenv.sh --debug ${{ matrix.target }}
           ./scripts/download_fw.sh
 
       - name: Extract stock firmwares
         run: |
-          source ./buildenv.sh ${{ matrix.target }}
+          source buildenv.sh --debug ${{ matrix.target }}
           ./scripts/extract_fw.sh
 
       - name: Add swapspace
@@ -78,26 +78,25 @@ jobs:
 
       - name: Build ROM
         run: |
-          source ./buildenv.sh ${{ matrix.target }}
+          source buildenv.sh --debug ${{ matrix.target }}
           ./scripts/make_rom.sh 
 
-      - name: Download PixelDrain CLI (pd)
+      - name: Upload to GoFile
         run: |
-          curl -L https://github.com/jkawamoto/go-pixeldrain/releases/download/v0.7.6/pd_0.7.6_linux_amd64.tar.gz -o pd.tar.gz
-          tar -xvf pd.tar.gz
-          chmod +x pd
-          sudo mv pd /usr/local/bin/pd
-          
-      - name: Upload ROM to PixelDrain
-        env:
-          PIXELDRAIN_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
-        run: |
-          cd out
-          for ROM_FILE in *.zip; do
-            if [ ! -f "$ROM_FILE" ]; then
-              echo "No ROM zip found!"
-              exit 1
-            fi
-            echo "Uploading $ROM_FILE to Pixeldrain..."
-            pd --api-key "$PIXELDRAIN_API_KEY" upload "$ROM_FILE" | sed 's|api/file|u|g'
-          done
+          ZIP_FILE=$(find out -maxdepth 1 -type f -name "UN1CA*.zip" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "No ZIP file found!"
+            exit 1
+          fi
+
+          RESPONSE=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.GOFILE_TOKEN }}" \
+            -F "file=@$ZIP_FILE" \
+            https://upload.gofile.io/uploadfile)
+
+          echo "Full response:"
+          echo "$RESPONSE" | jq
+
+          echo "Download link:"
+          echo "$RESPONSE" | jq -r '.data.downloadPage'
