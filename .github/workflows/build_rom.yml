@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        target: [ r8q ]
+        target: [ r9q2 ]
 
     steps:
       - name: Checkout repo
